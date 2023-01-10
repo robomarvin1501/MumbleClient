@@ -1,9 +1,11 @@
+import json
 import time
 
 import keyboard
 import pyaudio
 import pymumble_py3
 from pymumble_py3.callbacks import PYMUMBLE_CLBK_SOUNDRECEIVED as PCS
+from pymumble_py3.messages import MoveCmd
 
 # Example mumble command
 # self.mumble.commands.new_cmd(
@@ -23,10 +25,16 @@ RATE = 48000  # pymumble soundchunk.pcm is 48000Hz
 
 
 class MumbleClient:
-    def __init__(self, server, nickname, pwd=""):
+    def __init__(self, server, nickname, pwd="", person_type="", configuration=None):
+        if configuration is None:
+            raise Exception(f"Invalid configuration: {configuration}")
+
         self.pwd = pwd
         self.server = server
         self.nickname = nickname
+
+        self.configuration = configuration
+        self.person_type = person_type
 
         self.mumble: pymumble_py3.Mumble = None  # Defined in _create_mumble_instance
         self.p: pyaudio.PyAudio = None  # Defined in _setup_audio
@@ -57,8 +65,22 @@ class MumbleClient:
                                   output=True,
                                   frames_per_buffer=CHUNKSIZE)
 
+    def _get_channel_id_from_name(self, channel_name: str):
+        for channel_id in self.mumble.channels.keys():
+            if self.mumble.channels[channel_id]["name"] == channel_name:
+                return channel_id
+        return 0
+
     def _setup_keyboard_hooks(self):
-        keyboard.add_hotkey("`", self.audio_capture)
+        keyboard.add_hotkey(self.configuration["speak"], self.audio_capture)
+
+        if self.person_type in self.configuration["configurations"]:
+            for hook in self.configuration["configurations"][self.person_type]:
+                keyboard.add_hotkey(hook[0], self.change_channel, args=(hook[1],))
+
+    def change_channel(self, target_channel_name):
+        self.mumble.execute_command(
+            MoveCmd(self.mumble.users.myself_session, self._get_channel_id_from_name(target_channel_name)))
 
     def sound_retriever_handler(self, user, soundchunk):
         self.stream.write(soundchunk.pcm)
@@ -71,7 +93,9 @@ class MumbleClient:
 
 
 if __name__ == "__main__":
-    mumbler = MumbleClient("192.133.1.228", "John")
+    with open("example_config.json", 'r') as f:
+        configuration = json.load(f)
+    mumbler = MumbleClient("***REMOVED***", "John", person_type="SuperUser", configuration=configuration)
 
-    keyboard.wait("ctrl+esc")
+    keyboard.wait("esc")
     print("Exited")
