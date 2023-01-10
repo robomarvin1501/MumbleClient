@@ -25,7 +25,7 @@ RATE = 48000  # pymumble soundchunk.pcm is 48000Hz
 
 
 class MumbleClient:
-    def __init__(self, server, nickname, pwd="", person_type="", configuration=None):
+    def __init__(self, server, nickname, pwd="", configuration=None):
         if configuration is None:
             raise Exception(f"Invalid configuration: {configuration}")
 
@@ -34,7 +34,6 @@ class MumbleClient:
         self.nickname = nickname
 
         self.configuration = configuration
-        self.person_type = person_type
 
         self.mumble: pymumble_py3.Mumble = None  # Defined in _create_mumble_instance
         self.p: pyaudio.PyAudio = None  # Defined in _setup_audio
@@ -73,9 +72,15 @@ class MumbleClient:
 
     def _setup_keyboard_hooks(self):
         keyboard.add_hotkey(self.configuration["speak"], self.audio_capture)
+        person_type = None
 
-        if self.person_type in self.configuration["configurations"]:
-            for hook in self.configuration["configurations"][self.person_type]:
+        for user_type in self.configuration["user_types"]:
+            if self.nickname in self.configuration["user_types"][user_type]:
+                person_type = user_type
+                break
+
+        if person_type is not None:
+            for hook in self.configuration["configurations"][person_type]:
                 keyboard.add_hotkey(hook[0], self.change_channel, args=(hook[1],))
 
     def change_channel(self, target_channel_name):
@@ -95,7 +100,8 @@ class MumbleClient:
 if __name__ == "__main__":
     with open("example_config.json", 'r') as f:
         configuration = json.load(f)
-    mumbler = MumbleClient("***REMOVED***", "John", person_type="SuperUser", configuration=configuration)
+    # mumbler = MumbleClient("***REMOVED***", "John", configuration=configuration)
+    mumbler = MumbleClient("***REMOVED***", "***REMOVED***Only", configuration=configuration)
 
     keyboard.wait("esc")
     print("Exited")
