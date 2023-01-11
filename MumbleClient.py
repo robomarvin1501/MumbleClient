@@ -1,4 +1,6 @@
 import json
+import sys
+import os
 import time
 import keyboard
 import pyaudio
@@ -123,9 +125,13 @@ def check_configuration_update(mumble_client: MumbleClient, configuration_path: 
 
 
 if __name__ == "__main__":
-    with open("example_config.json", 'r') as f:
+    server = sys.argv[1]
+    nickname = sys.argv[2]
+    configuration_path = sys.argv[3]
+
+    with open(configuration_path, 'r') as f:
         configuration = json.load(f)
-    mumbler = MumbleClient("***REMOVED***", "John", configuration=configuration)
+    mumbler = MumbleClient("***REMOVED***", nickname, configuration=configuration)
     # mumbler = MumbleClient("***REMOVED***", "***REMOVED***Only", configuration=configuration)
 
     check_configuration_update(mumbler, "example_config.json", os.path.getmtime("example_config.json"), 2)
