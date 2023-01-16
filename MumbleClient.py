@@ -10,15 +10,7 @@ import pymumble_py3
 from pymumble_py3.callbacks import PYMUMBLE_CLBK_SOUNDRECEIVED as PCS
 from pymumble_py3.messages import MoveCmd, ModUserState
 
-# Example mumble command
-# self.mumble.commands.new_cmd(
-#     cmds.ModUserState(
-#         self.mumble.users.myself_session, {
-#             "session": self.mumble.users.myself_session,
-#             "listening_channel_add": self.mumble.channels.keys() ^ {0}
-#         }
-#     )
-# )
+import send_event_reports
 
 # pyaudio constants
 CHUNKSIZE = 1024
@@ -28,7 +20,7 @@ RATE = 48000  # pymumble soundchunk.pcm is 48000Hz
 
 
 class MumbleClient:
-    def __init__(self, server, nickname, pwd="", configuration=None):
+    def __init__(self, server, nickname, pwd="", configuration=None, exercise_id=20):
         if configuration is None:
             raise Exception(f"Invalid configuration: {configuration}")
 
@@ -41,6 +33,10 @@ class MumbleClient:
         self.mumble: pymumble_py3.Mumble = None  # Defined in _create_mumble_instance
         self.p: pyaudio.PyAudio = None  # Defined in _setup_audio
         self.stream: pyaudio.Stream = None  # Defined in _setup_audio
+
+        self.exercise_id = exercise_id
+        self._already_speaking = False
+        self._muted = False
 
         self._setup_audio()
         self._create_mumble_instance()
@@ -69,6 +65,9 @@ class MumbleClient:
 
     def _setup_keyboard_hooks(self):
         keyboard.add_hotkey(self.configuration["speak"], self.audio_capture)
+        keyboard.on_press_key(self.configuration["speak"], self._start_talking)
+        keyboard.on_release_key(self.configuration["speak"], self._stop_talking)
+
         keyboard.add_hotkey(
             self.configuration["StartListening"],
             self.change_channel_listening_status,
@@ -90,6 +89,18 @@ class MumbleClient:
             for hook in self.configuration["UserTypeConfigurations"][person_type]:
                 keyboard.add_hotkey(hook, self.change_channel, args=(
                     self.configuration["UserTypeConfigurations"][person_type][hook],))
+
+    def _start_talking(self, key_event: keyboard.KeyboardEvent):
+        if not self._already_speaking and not self._muted:
+            send_event_reports.voice_chat_change_recording(0, self.mumble.my_channel()["name"], self.nickname,
+                                                           exercise_id=self.exercise_id)
+            self._already_speaking = True
+
+    def _stop_talking(self, key_event: keyboard.KeyboardEvent):
+        if not self._muted:
+            send_event_reports.voice_chat_change_recording(1, self.mumble.my_channel()["name"], self.nickname,
+                                                           exercise_id=self.exercise_id)
+            self._already_speaking = False
 
     def update_configuration(self, configuration: dict):
         self.configuration = configuration
@@ -122,6 +133,12 @@ class MumbleClient:
 
     def change_channel(self, channel_data):
         # self.stop_all_listening()
+        if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
+            return
+
+        send_event_reports.voice_chat_change_channel(self.mumble.my_channel()["name"],
+                                                     channel_data["ChannelName"], self.nickname,
+                                                     exercise_id=self.exercise_id)
 
         self.mumble.execute_command(
             MoveCmd(self.mumble.users.myself_session,
@@ -130,9 +147,11 @@ class MumbleClient:
         time.sleep(0.1)
         if channel_data["CanTalk"]:
             self.mumble.users[self.mumble.users.myself_session].unmute()
+            self._muted = False
             print("Unmuted")
         else:
             self.mumble.users[self.mumble.users.myself_session].mute()
+            self._muted = True
             print("Muted")
         # if "ListeningChannels" in channel_data:
         #     self.start_listening_to_channels(channel_data["ListeningChannels"])
