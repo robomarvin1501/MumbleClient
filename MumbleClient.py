@@ -33,6 +33,7 @@ class MumbleClient:
         self.mumble: pymumble_py3.Mumble = None  # Defined in _create_mumble_instance
         self.p: pyaudio.PyAudio = None  # Defined in _setup_audio
         self.stream: pyaudio.Stream = None  # Defined in _setup_audio
+        self.person_type: str = None  # Defined in _setup_keyboard_hooks
 
         self.exercise_id = exercise_id
         self._already_speaking = False
@@ -41,6 +42,9 @@ class MumbleClient:
         self._setup_audio()
         self._create_mumble_instance()
         self._setup_keyboard_hooks()
+
+        self.change_channel(self.configuration["UserTypeConfigurations"][self.person_type][
+                                list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]])
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stream.stop_stream()
@@ -86,6 +90,7 @@ class MumbleClient:
                 break
 
         if person_type is not None:
+            self.person_type = person_type
             for hook in self.configuration["UserTypeConfigurations"][person_type]:
                 keyboard.add_hotkey(hook, self.change_channel, args=(
                     self.configuration["UserTypeConfigurations"][person_type][hook],))
