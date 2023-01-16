@@ -8,7 +8,7 @@ import threading
 
 import pymumble_py3
 from pymumble_py3.callbacks import PYMUMBLE_CLBK_SOUNDRECEIVED as PCS
-from pymumble_py3.messages import MoveCmd
+from pymumble_py3.messages import MoveCmd, ModUserState
 
 # Example mumble command
 # self.mumble.commands.new_cmd(
@@ -69,16 +69,27 @@ class MumbleClient:
 
     def _setup_keyboard_hooks(self):
         keyboard.add_hotkey(self.configuration["speak"], self.audio_capture)
+        keyboard.add_hotkey(
+            self.configuration["StartListening"],
+            self.change_channel_listening_status,
+            args=([], True)
+        )
+        keyboard.add_hotkey(
+            self.configuration["StopListening"],
+            self.change_channel_listening_status,
+            args=([], False)
+        )
         person_type = None
 
-        for user_type in self.configuration["user_types"]:
-            if self.nickname in self.configuration["user_types"][user_type]:
+        for user_type in self.configuration["UserTypes"]:
+            if self.nickname in self.configuration["UserTypes"][user_type]:
                 person_type = user_type
                 break
 
         if person_type is not None:
-            for hook in self.configuration["configurations"][person_type]:
-                keyboard.add_hotkey(hook[0], self.change_channel, args=(hook[1],))
+            for hook in self.configuration["UserTypeConfigurations"][person_type]:
+                keyboard.add_hotkey(hook, self.change_channel, args=(
+                    self.configuration["UserTypeConfigurations"][person_type][hook],))
 
     def update_configuration(self, configuration: dict):
         self.configuration = configuration
@@ -87,17 +98,51 @@ class MumbleClient:
 
         self._setup_keyboard_hooks()
 
-    def change_channel(self, target_channel_name):
+    def change_channel_listening_status(self, channels: list[str] = None, listen: bool = True):
+        if channels is None or len(channels) == 0:
+            channels = [self.mumble.my_channel()["name"]]
+
+        channel_ids = []
+        for channel_name in channels:
+            channel_ids.append(self.mumble.channels.find_by_name(channel_name)["channel_id"])
+
+        if listen:
+            cmd = "listening_channel_add"
+        else:
+            cmd = "listening_channel_remove"
+
+        self.mumble.commands.new_cmd(
+            ModUserState(
+                self.mumble.users.myself_session, {
+                    "session": self.mumble.users.myself_session,
+                    cmd: channel_ids
+                }
+            )
+        )
+
+    def change_channel(self, channel_data):
+        # self.stop_all_listening()
+
         self.mumble.execute_command(
             MoveCmd(self.mumble.users.myself_session,
-                    self.mumble.channels.find_by_name(target_channel_name)["channel_id"]))
+                    self.mumble.channels.find_by_name(channel_data["ChannelName"])["channel_id"]))
+
+        time.sleep(0.1)
+        if channel_data["CanTalk"]:
+            self.mumble.users[self.mumble.users.myself_session].unmute()
+            print("Unmuted")
+        else:
+            self.mumble.users[self.mumble.users.myself_session].mute()
+            print("Muted")
+        # if "ListeningChannels" in channel_data:
+        #     self.start_listening_to_channels(channel_data["ListeningChannels"])
 
     def sound_retriever_handler(self, user, soundchunk):
         self.stream.write(soundchunk.pcm)
 
     def audio_capture(self):
         starting_time = time.time()
-        while time.time() - starting_time < 1:
+        while time.time() - starting_time < 0.05:
             data = self.stream.read(CHUNKSIZE, exception_on_overflow=False)
             self.mumble.sound_output.add_sound(data)
 
@@ -112,14 +157,14 @@ def check_configuration_update(mumble_client: MumbleClient, configuration_path: 
         mumble_client.update_configuration(configuration)
 
         next_thread = threading.Timer(refresh_time, check_configuration_update,
-                        args=(mumble_client, configuration_path, update_time, refresh_time))
+                                      args=(mumble_client, configuration_path, update_time, refresh_time))
         next_thread.daemon = True
         next_thread.start()
 
     else:
         print("no update")
         next_thread = threading.Timer(refresh_time, check_configuration_update,
-                        args=(mumble_client, configuration_path, last_update_time, refresh_time))
+                                      args=(mumble_client, configuration_path, last_update_time, refresh_time))
         next_thread.daemon = True
         next_thread.start()
 
