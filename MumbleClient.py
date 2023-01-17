@@ -6,11 +6,135 @@ import keyboard
 import pyaudio
 import threading
 
+import tkinter as tk
+
 import pymumble_py3
 from pymumble_py3.callbacks import PYMUMBLE_CLBK_SOUNDRECEIVED as PCS
 from pymumble_py3.messages import MoveCmd, ModUserState
 
 import send_event_reports
+
+# from mumbler import Mumbler
+
+COLOURS = {
+    "red": "#FF0000",
+    "dark-red": "#AA0000",
+    "green": "#00FF00",
+    "dark-green": "#00AA00",
+    "yellow": "#DDAA00"
+}
+
+
+class Mumbler:
+    def __init__(self, server, nickname, configuration_path):
+        with open(configuration_path, 'r') as f:
+            configuration = json.load(f)
+
+        self.non_selected_thickness = 5
+        self.selected_thickness = 15
+
+        self.muted_background = COLOURS["red"]
+        self.listening_background = COLOURS["yellow"]
+        self.talking_background = COLOURS["dark-green"]
+
+        self.not_talking_highlight = COLOURS["dark-red"]
+        self.talking_highlight = COLOURS["green"]
+
+        self.window = tk.Tk()
+        self.window.title("***REMOVED***")
+        self.frames: dict[str, tk.Frame] = dict()
+        self.labels: dict[str, tk.Label] = dict()
+
+        self.current_channel: str = ""
+        self.muted: bool = False
+        self.listening_channels: set[str] = set()
+
+        for user_type in configuration["UserTypes"]:
+            if nickname in configuration["UserTypes"][user_type]:
+                self.person_type = user_type
+                break
+
+        self._setup_ui(configuration)
+
+        self.mumble_client = MumbleClient(server, nickname, gui=self, configuration=configuration)
+
+    def _get_channel_names_and_keys(self, configuration: dict):
+        person_type_config = configuration["UserTypeConfigurations"][self.person_type]
+        channel_names_and_keys = []
+        for key in person_type_config:
+            channel_names_and_keys.append([key, person_type_config[key]["ChannelName"]])
+
+        return channel_names_and_keys
+
+    def _setup_ui(self, configuration: dict):
+        frame_width = 140
+        frame_height = 90
+        for channel_num, channel_name in (channel_names_and_keys := self._get_channel_names_and_keys(configuration)):
+            frame = tk.Frame(master=self.window, width=frame_width, height=frame_height,
+                             bg=self.muted_background)
+            frame.config(highlightbackground=self.not_talking_highlight, highlightthickness=self.non_selected_thickness)
+
+            frame.pack(fill=tk.BOTH, side=tk.LEFT, expand=True)
+
+            self.frames[channel_name] = frame
+
+            label = tk.Label(master=frame, text=f"{channel_name}\n{channel_num}", bg=self.muted_background)
+            label.place(anchor="center", relx=0.5, rely=0.5)
+            self.labels[channel_name] = label
+
+        width = frame_width * len(channel_names_and_keys)
+        height = frame_height
+        xpos = self.window.winfo_screenwidth() - (width + 50)
+        ypos = self.window.winfo_screenheight() - (height + 50)
+
+        self.window.geometry(f"{width}x{height}+{xpos}+{ypos}")
+
+        self.window.attributes("-topmost", True)
+        self.window.update()
+
+    def change_channel(self, channel_data: dict[str]):
+        if self.current_channel != "":
+            self.frames[self.current_channel].config(highlightthickness=self.non_selected_thickness)
+
+        self.current_channel = channel_data["ChannelName"]
+        self.muted = not channel_data["CanTalk"]
+
+        self.frames[self.current_channel].config(highlightthickness=self.selected_thickness)
+
+        self.set_all_frame_colours()
+
+    def talk(self, talking: bool = False):
+        if self.current_channel == "":
+            return
+        if talking:
+            self.frames[self.current_channel].config(highlightbackground=self.talking_highlight)
+        else:
+            self.frames[self.current_channel].config(highlightbackground=self.not_talking_highlight)
+
+    def set_all_frame_colours(self):
+        for channel_name in self.frames.keys():
+            if channel_name == self.current_channel:
+                if self.muted:
+                    self.set_frame_colour(channel_name, "listening")
+                else:
+                    self.set_frame_colour(channel_name, "talking")
+            else:
+                if channel_name in self.listening_channels:
+                    self.set_frame_colour(channel_name, "listening")
+                else:
+                    self.set_frame_colour(channel_name, "muted")
+
+    def set_frame_colour(self, channel_name: str, type: str):
+        if type == "muted":
+            self.frames[channel_name].config(bg=self.muted_background)
+            self.labels[channel_name].config(bg=self.muted_background)
+        elif type == "listening":
+            self.frames[channel_name].config(bg=self.listening_background)
+            self.labels[channel_name].config(bg=self.listening_background)
+        elif type == "talking":
+            self.frames[channel_name].config(bg=self.talking_background)
+            self.labels[channel_name].config(bg=self.talking_background)
+
 
 # pyaudio constants
 CHUNKSIZE = 1024
@@ -20,7 +144,7 @@ RATE = 48000  # pymumble soundchunk.pcm is 48000Hz
 
 
 class MumbleClient:
-    def __init__(self, server, nickname, pwd="", configuration=None, exercise_id=20):
+    def __init__(self, server, nickname, pwd="", gui: Mumbler = None, configuration=None, exercise_id=20):
         if configuration is None:
             raise Exception(f"Invalid configuration: {configuration}")
 
@@ -29,6 +153,7 @@ class MumbleClient:
         self.nickname = nickname
 
         self.configuration = configuration
+        self.gui = gui
 
         self.mumble: pymumble_py3.Mumble = None  # Defined in _create_mumble_instance
         self.p: pyaudio.PyAudio = None  # Defined in _setup_audio
@@ -43,8 +168,9 @@ class MumbleClient:
         self._create_mumble_instance()
         self._setup_keyboard_hooks()
 
-        self.change_channel(self.configuration["UserTypeConfigurations"][self.person_type][
-                                list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]])
+        self.change_channel((channel_data := self.configuration["UserTypeConfigurations"][self.person_type][
+                                list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]]))
+        self.gui.change_channel(channel_data)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stream.stop_stream()
@@ -100,12 +226,14 @@ class MumbleClient:
             send_event_reports.voice_chat_change_recording(0, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = True
+            self.gui.talk(True)
 
     def _stop_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._muted:
             send_event_reports.voice_chat_change_recording(1, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = False
+            self.gui.talk(False)
 
     def update_configuration(self, configuration: dict):
         self.configuration = configuration
@@ -124,8 +252,12 @@ class MumbleClient:
 
         if listen:
             cmd = "listening_channel_add"
+            self.gui.listening_channels |= set(channels)
+            self.gui.set_all_frame_colours()
         else:
             cmd = "listening_channel_remove"
+            self.gui.listening_channels.difference_update(channels)
+            self.gui.set_all_frame_colours()
 
         self.mumble.commands.new_cmd(
             ModUserState(
@@ -158,6 +290,7 @@ class MumbleClient:
             self.mumble.users[self.mumble.users.myself_session].mute()
             self._muted = True
             print("Muted")
+        self.gui.change_channel(channel_data)
         # if "ListeningChannels" in channel_data:
         #     self.start_listening_to_channels(channel_data["ListeningChannels"])
 
@@ -194,16 +327,22 @@ def check_configuration_update(mumble_client: MumbleClient, configuration_path: 
 
 
 if __name__ == "__main__":
-    server = sys.argv[1]
-    nickname = sys.argv[2]
-    configuration_path = sys.argv[3]
+    config = "example_config.json"
+    mblr = Mumbler("***REMOVED***", "Alex", config)
+    check_configuration_update(mblr.mumble_client, config, os.path.getmtime("example_config.json"), 2)
 
-    with open(configuration_path, 'r') as f:
-        configuration = json.load(f)
-    mumbler = MumbleClient("***REMOVED***", nickname, configuration=configuration)
-    # mumbler = MumbleClient("***REMOVED***", "***REMOVED***Only", configuration=configuration)
+    mblr.window.mainloop()
 
-    check_configuration_update(mumbler, "example_config.json", os.path.getmtime("example_config.json"), 2)
-
-    keyboard.wait("esc")
-    print("Exited")
+    # server = sys.argv[1]
+    # nickname = sys.argv[2]
+    # configuration_path = sys.argv[3]
+    #
+    # with open(configuration_path, 'r') as f:
+    #     configuration = json.load(f)
+    # mumbler = MumbleClient("***REMOVED***", nickname, configuration=configuration)
+    # # mumbler = MumbleClient("***REMOVED***", "***REMOVED***Only", configuration=configuration)
+    #
+    # check_configuration_update(mumbler, "example_config.json", os.path.getmtime("example_config.json"), 2)
+    #
+    # keyboard.wait("esc")
+    # print("Exited")

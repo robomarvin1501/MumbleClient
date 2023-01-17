@@ -3,7 +3,7 @@ import os
 import keyboard
 import json
 
-from MumbleClient import MumbleClient, check_configuration_update
+from MumbleClient import Mumbler, check_configuration_update
 
 cli_parser = argparse.ArgumentParser()
 
@@ -23,11 +23,10 @@ if args.refresh_time is None:
 else:
     refresh_time = args.refresh_time
 
-with open(configuration_path, 'r') as f:
-    configuration = json.load(f)
+mumbler = Mumbler(server, nickname, configuration_path=configuration_path)
+check_configuration_update(mumbler.mumble_client, configuration_path, os.path.getmtime(configuration_path), refresh_time)
 
-mumbler = MumbleClient(server, nickname, configuration=configuration)
-check_configuration_update(mumbler, configuration_path, os.path.getmtime(configuration_path), refresh_time)
+mumbler.window.mainloop()
 
-keyboard.wait("esc")
+# keyboard.wait("esc")
 print("Exited")
