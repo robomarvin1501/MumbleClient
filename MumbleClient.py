@@ -49,6 +49,8 @@ class Mumbler:
         self.muted: bool = False
         self.listening_channels: set[str] = set()
 
+        self.stop_showing_talking_timer: threading.Timer = None
+
         for user_type in configuration["UserTypes"]:
             if nickname in configuration["UserTypes"][user_type]:
                 self.person_type = user_type
@@ -135,6 +137,13 @@ class Mumbler:
             self.frames[channel_name].config(bg=self.talking_background)
             self.labels[channel_name].config(bg=self.talking_background)
 
+    def show_someone_else_talking(self, channel_name: str, talking: bool = False):
+        if talking:
+            self.labels[channel_name].config(bg=self.talking_highlight)
+            self.stop_showing_talking_timer = threading.Timer(0.1, self.show_someone_else_talking, args=(channel_name, False))
+            self.stop_showing_talking_timer.start()
+        else:
+            self.set_all_frame_colours()
 
 # pyaudio constants
 CHUNKSIZE = 1024
@@ -295,6 +304,10 @@ class MumbleClient:
         #     self.start_listening_to_channels(channel_data["ListeningChannels"])
 
     def sound_retriever_handler(self, user, soundchunk):
+        if type(self.gui.stop_showing_talking_timer) == threading.Timer:
+            self.gui.stop_showing_talking_timer.cancel()
+        talking_channel = self.mumble.channels[user["channel_id"]]["name"]
+        self.gui.show_someone_else_talking(talking_channel, True)
         self.stream.write(soundchunk.pcm)
 
     def audio_capture(self):
