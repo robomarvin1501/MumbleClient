@@ -175,13 +175,15 @@ class MumbleClient:
         self._already_speaking = False
         self._muted = False
 
+        self.internal_chat = False
+        self.current_target: list[str] = None
+
         self._setup_audio()
         self._create_mumble_instance()
         self._setup_keyboard_hooks()
+        self._set_internal_chat()
 
-        self.change_channel((channel_data := self.configuration["UserTypeConfigurations"][self.person_type][
-            list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]]))
-        self.gui.change_channel(channel_data)
+        self._move_to_starting_channel()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stream.stop_stream()
@@ -232,8 +234,30 @@ class MumbleClient:
                 keyboard.add_hotkey(hook, self.change_channel, args=(
                     self.configuration["UserTypeConfigurations"][person_type][hook],))
 
+    def _set_internal_chat(self):
+        for channel_num in self.configuration["UserTypeConfigurations"][self.person_type]:
+            channel_config = self.configuration["UserTypeConfigurations"][self.person_type][channel_num]
+            if "AlwaysTalking" in channel_config and channel_config["AlwaysTalking"]:
+                self.internal_chat = True
+                return
+
+    def _move_to_starting_channel(self):
+        if not self.internal_chat:
+            self.change_channel((channel_data := self.configuration["UserTypeConfigurations"][self.person_type][
+                list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]]))
+            self.gui.change_channel(channel_data)
+        else:
+            for channel_num in self.configuration["UserTypeConfigurations"][self.person_type]:
+                channel_config = self.configuration["UserTypeConfigurations"][self.person_type][channel_num]
+                if "AlwaysTalking" in channel_config and channel_config["AlwaysTalking"]:
+                    self.change_channel(channel_config)
+
     def _start_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._already_speaking and not self._muted:
+            if self.internal_chat and self.current_target is not None:
+                self.mumble.sound_output.set_whisper(
+                    [self.mumble.channels.find_by_name(self.current_target[0])["channel_id"]], channel=True
+                )
             send_event_reports.voice_chat_change_recording(0, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = True
@@ -241,6 +265,8 @@ class MumbleClient:
 
     def _stop_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._muted:
+            if self.internal_chat:
+                self.mumble.sound_output.remove_whisper()
             send_event_reports.voice_chat_change_recording(1, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = False
@@ -282,14 +308,23 @@ class MumbleClient:
     def change_channel(self, channel_data):
         # self.stop_all_listening()
         if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
+            if self.internal_chat:
+                self.change_channel_listening_status(self.current_target, False)
+                self.gui.change_channel(channel_data)
             return
 
-        self.mumble.execute_command(
-            MoveCmd(self.mumble.users.myself_session,
-                    self.mumble.channels.find_by_name(channel_data["ChannelName"])["channel_id"]))
+        if self.internal_chat and self.mumble.my_channel()["name"] != "Root":
+            self.change_channel_listening_status(self.current_target, False)
+            if channel_data["CanTalk"]:
+                self.current_target = [self.mumble.channels.find_by_name(channel_data["ChannelName"])["name"]]
+            self.change_channel_listening_status(self.current_target, True)
+        else:
+            self.mumble.execute_command(
+                MoveCmd(self.mumble.users.myself_session,
+                        self.mumble.channels.find_by_name(channel_data["ChannelName"])["channel_id"]))
 
         time.sleep(0.1)
-        if self.mumble.my_channel() == channel_data["ChannelName"]:
+        if self.mumble.my_channel()["name"] == channel_data["ChannelName"]:
             send_event_reports.voice_chat_change_channel(self.mumble.my_channel()["name"],
                                                          channel_data["ChannelName"], self.nickname,
                                                          exercise_id=self.exercise_id)
@@ -301,6 +336,10 @@ class MumbleClient:
                 self.mumble.users[self.mumble.users.myself_session].mute()
                 self._muted = True
                 print("Muted")
+
+            self.gui.change_channel(channel_data)
+
+        if self.internal_chat:
             self.gui.change_channel(channel_data)
         # if "ListeningChannels" in channel_data:
         #     self.start_listening_to_channels(channel_data["ListeningChannels"])
