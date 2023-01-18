@@ -27,7 +27,7 @@ COLOURS = {
 
 class Mumbler:
     def __init__(self, server, nickname, configuration_path):
-        with open(configuration_path, 'r') as f:
+        with open(configuration_path, 'r', encoding="utf-8") as f:
             configuration = json.load(f)
 
         self.non_selected_thickness = 5
@@ -69,8 +69,8 @@ class Mumbler:
         return channel_names_and_keys
 
     def _setup_ui(self, configuration: dict):
-        frame_width = 140
-        frame_height = 90
+        frame_width = 100
+        frame_height = 70
         for channel_num, channel_name in (channel_names_and_keys := self._get_channel_names_and_keys(configuration)):
             frame = tk.Frame(master=self.window, width=frame_width, height=frame_height,
                              bg=self.muted_background)
