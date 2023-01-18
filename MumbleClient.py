@@ -176,6 +176,8 @@ class MumbleClient:
         self._muted = False
 
         self.internal_chat = False
+        self.always_talking_thread: threading.Thread = threading.Thread(target=self.always_talking_audio_capture,
+                                                                        daemon=True)
         self.current_target: list[str] = None
 
         self._setup_audio()
@@ -239,6 +241,7 @@ class MumbleClient:
             channel_config = self.configuration["UserTypeConfigurations"][self.person_type][channel_num]
             if "AlwaysTalking" in channel_config and channel_config["AlwaysTalking"]:
                 self.internal_chat = True
+                self.always_talking_thread.start()
                 return
 
     def _move_to_starting_channel(self):
@@ -350,6 +353,10 @@ class MumbleClient:
         talking_channel = self.mumble.channels[user["channel_id"]]["name"]
         self.gui.show_someone_else_talking(talking_channel, True)
         self.stream.write(soundchunk.pcm)
+
+    def always_talking_audio_capture(self):
+        while True:
+            self.audio_capture()
 
     def audio_capture(self):
         starting_time = time.time()
