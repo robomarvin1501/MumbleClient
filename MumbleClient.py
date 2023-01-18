@@ -140,10 +140,12 @@ class Mumbler:
     def show_someone_else_talking(self, channel_name: str, talking: bool = False):
         if talking:
             self.labels[channel_name].config(bg=self.talking_highlight)
-            self.stop_showing_talking_timer = threading.Timer(0.1, self.show_someone_else_talking, args=(channel_name, False))
+            self.stop_showing_talking_timer = threading.Timer(0.1, self.show_someone_else_talking,
+                                                              args=(channel_name, False))
             self.stop_showing_talking_timer.start()
         else:
             self.set_all_frame_colours()
+
 
 # pyaudio constants
 CHUNKSIZE = 1024
@@ -177,8 +179,11 @@ class MumbleClient:
         self._create_mumble_instance()
         self._setup_keyboard_hooks()
 
+        self.always_talking_thread = threading.Thread(target=self.always_talking, daemon=True)
+        self.should_always_be_talking = False
+
         self.change_channel((channel_data := self.configuration["UserTypeConfigurations"][self.person_type][
-                                list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]]))
+            list(self.configuration["UserTypeConfigurations"][self.person_type].keys())[0]]))
         self.gui.change_channel(channel_data)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -282,6 +287,7 @@ class MumbleClient:
         if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
             return
 
+        self.gui.talk(False)
         send_event_reports.voice_chat_change_channel(self.mumble.my_channel()["name"],
                                                      channel_data["ChannelName"], self.nickname,
                                                      exercise_id=self.exercise_id)
@@ -299,7 +305,19 @@ class MumbleClient:
             self.mumble.users[self.mumble.users.myself_session].mute()
             self._muted = True
             print("Muted")
-        self.gui.change_channel(channel_data)
+
+        if self.mumble.my_channel()["name"] == channel_data["ChannelName"]:
+            self.gui.change_channel(channel_data)
+
+        if "AlwaysTalking" in channel_data and channel_data["AlwaysTalking"]:
+            self.gui.talk(True)
+            if not self.should_always_be_talking and not self.always_talking_thread.is_alive():
+                self.should_always_be_talking = True
+                self.always_talking_thread.start()
+        else:
+            self.should_always_be_talking = False
+            self.always_talking_thread = threading.Thread(target=self.always_talking, daemon=True)
+            # self.gui.talk(False)
         # if "ListeningChannels" in channel_data:
         #     self.start_listening_to_channels(channel_data["ListeningChannels"])
 
@@ -309,6 +327,10 @@ class MumbleClient:
         talking_channel = self.mumble.channels[user["channel_id"]]["name"]
         self.gui.show_someone_else_talking(talking_channel, True)
         self.stream.write(soundchunk.pcm)
+
+    def always_talking(self):
+        while self.should_always_be_talking:
+            self.audio_capture()
 
     def audio_capture(self):
         starting_time = time.time()
