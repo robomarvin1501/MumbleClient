@@ -270,7 +270,7 @@ class MumbleClient:
             self.gui.listening_channels.difference_update(channels)
             self.gui.set_all_frame_colours()
 
-        self.mumble.commands.new_cmd(
+        self.mumble.execute_command(
             ModUserState(
                 self.mumble.users.myself_session, {
                     "session": self.mumble.users.myself_session,
