@@ -1,7 +1,5 @@
 import argparse
 import os
-import keyboard
-import json
 
 from MumbleClient import Mumbler, check_configuration_update
 
@@ -24,9 +22,8 @@ else:
     refresh_time = args.refresh_time
 
 mumbler = Mumbler(server, nickname, configuration_path=configuration_path)
-check_configuration_update(mumbler.mumble_client, configuration_path, os.path.getmtime(configuration_path), refresh_time)
+check_configuration_update(mumbler.mumble_client, configuration_path, os.path.getmtime(configuration_path),
+                           refresh_time)
 
 mumbler.window.mainloop()
-
-# keyboard.wait("esc")
 print("Exited")

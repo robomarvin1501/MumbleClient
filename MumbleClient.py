@@ -1,5 +1,4 @@
 import json
-import sys
 import os
 import time
 import keyboard
@@ -13,8 +12,6 @@ from pymumble_py3.callbacks import PYMUMBLE_CLBK_SOUNDRECEIVED as PCS
 from pymumble_py3.messages import MoveCmd, ModUserState
 
 import send_event_reports
-
-# from mumbler import Mumbler
 
 COLOURS = {
     "red": "#FF0000",
@@ -41,7 +38,7 @@ class Mumbler:
         self.talking_highlight = COLOURS["green"]
 
         self.window = tk.Tk()
-        self.window.title("***REMOVED***")
+        self.window.title(f"***REMOVED***-{nickname}")
         self.frames: dict[str, tk.Frame] = dict()
         self.labels: dict[str, tk.Label] = dict()
 
@@ -334,11 +331,9 @@ class MumbleClient:
             if channel_data["CanTalk"]:
                 self.mumble.users[self.mumble.users.myself_session].unmute()
                 self._muted = False
-                print("Unmuted")
             else:
                 self.mumble.users[self.mumble.users.myself_session].mute()
                 self._muted = True
-                print("Muted")
 
             self.gui.change_channel(channel_data)
 
@@ -369,7 +364,6 @@ def check_configuration_update(mumble_client: MumbleClient, configuration_path: 
                                refresh_time: int = 10):
     update_time = os.path.getmtime(configuration_path)
     if update_time > last_update_time:
-        print("update")
         with open(configuration_path, 'r') as f:
             configuration = json.load(f)
         mumble_client.update_configuration(configuration)
@@ -380,7 +374,6 @@ def check_configuration_update(mumble_client: MumbleClient, configuration_path: 
         next_thread.start()
 
     else:
-        print("no update")
         next_thread = threading.Timer(refresh_time, check_configuration_update,
                                       args=(mumble_client, configuration_path, last_update_time, refresh_time))
         next_thread.daemon = True
@@ -398,7 +391,7 @@ if __name__ == "__main__":
     # nickname = sys.argv[2]
     # configuration_path = sys.argv[3]
     #
-    # with open(configuration_path, 'r') as f:
+    # with open(configuration_path, 'r', encoding="utf-8") as f:
     #     configuration = json.load(f)
     # mumbler = MumbleClient("***REMOVED***", nickname, configuration=configuration)
     # # mumbler = MumbleClient("***REMOVED***", "***REMOVED***Only", configuration=configuration)
