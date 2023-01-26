@@ -176,6 +176,7 @@ class MumbleClient:
         self.always_talking_thread: threading.Thread = threading.Thread(target=self.always_talking_audio_capture,
                                                                         daemon=True)
         self.current_target: list[str] = None
+        self.listen: set[str] = set()
 
         self._setup_audio()
         self._create_mumble_instance()
@@ -220,6 +221,19 @@ class MumbleClient:
             self.change_channel_listening_status,
             args=([], False)
         )
+
+        keyboard.add_hotkey(
+            self.configuration["StartListening"],
+            self.always_listening,
+            args=([], True)
+        )
+
+        keyboard.add_hotkey(
+            self.configuration["StopListening"],
+            self.always_listening,
+            args=([], False)
+        )
+
         person_type = None
 
         for user_type in self.configuration["UserTypes"]:
@@ -279,6 +293,15 @@ class MumbleClient:
 
         self._setup_keyboard_hooks()
 
+    def always_listening(self, channels: list[str] = None, listen: bool = True):
+        if (channels == None or channels == []) and self.current_target is not None:
+            channels = self.current_target
+        channels = set(channels)
+        if listen:
+            self.listen |= channels
+        else:
+            self.listen.difference_update(channels)
+
     def change_channel_listening_status(self, channels: list[str] = None, listen: bool = True):
         if channels is None or len(channels) == 0:
             channels = [self.mumble.my_channel()["name"]]
@@ -292,6 +315,9 @@ class MumbleClient:
             self.gui.listening_channels |= set(channels)
             self.gui.set_all_frame_colours()
         else:
+            for channel in channels:
+                if channel in self.listen:
+                    channels.remove(channel)
             cmd = "listening_channel_remove"
             self.gui.listening_channels.difference_update(channels)
             self.gui.set_all_frame_colours()
@@ -309,12 +335,17 @@ class MumbleClient:
         # self.stop_all_listening()
         if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
             if self.internal_chat:
-                self.change_channel_listening_status(self.current_target, False)
+                stop_listening_targets = list(set(self.current_target) - self.listen)
+                self.change_channel_listening_status(stop_listening_targets, False)
                 self.gui.change_channel(channel_data)
             return
 
         if self.internal_chat and self.mumble.my_channel()["name"] != "Root":
-            self.change_channel_listening_status(self.current_target, False)
+            if self.current_target is not None:
+                stop_listening_targets = list(set(self.current_target) - self.listen)
+            else:
+                stop_listening_targets = self.current_target
+            self.change_channel_listening_status(stop_listening_targets, False)
             if channel_data["CanTalk"]:
                 self.current_target = [self.mumble.channels.find_by_name(channel_data["ChannelName"])["name"]]
             self.change_channel_listening_status(self.current_target, True)
