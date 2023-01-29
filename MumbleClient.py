@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import keyboard
 import pyaudio
@@ -52,6 +53,8 @@ class Mumbler:
             if nickname in configuration["UserTypes"][user_type]:
                 self.person_type = user_type
                 break
+        else:
+            sys.exit()
 
         self._setup_ui(configuration)
 
