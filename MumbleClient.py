@@ -139,7 +139,10 @@ class Mumbler:
 
     def show_someone_else_talking(self, channel_name: str, talking: bool = False):
         if talking:
-            self.labels[channel_name].config(bg=self.talking_highlight)
+            try:
+                self.labels[channel_name].config(bg=self.talking_highlight)
+            except RuntimeError:
+                pass
             self.stop_showing_talking_timer = threading.Timer(0.1, self.show_someone_else_talking,
                                                               args=(channel_name, False))
             self.stop_showing_talking_timer.start()
@@ -337,7 +340,7 @@ class MumbleClient:
     def change_channel(self, channel_data):
         # self.stop_all_listening()
         if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
-            if self.internal_chat:
+            if self.internal_chat and self.current_target is not None:
                 stop_listening_targets = list(set(self.current_target) - self.listen)
                 self.change_channel_listening_status(stop_listening_targets, False)
                 self.gui.change_channel(channel_data)
