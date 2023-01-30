@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import sys
@@ -158,7 +159,7 @@ RATE = 48000  # pymumble soundchunk.pcm is 48000Hz
 
 
 class MumbleClient:
-    def __init__(self, server, nickname, pwd="", gui: Mumbler = None, configuration=None, exercise_id=20):
+    def __init__(self, server, nickname, pwd="", gui: Mumbler = None, configuration=None, command_timeout: float = 0.8, exercise_id=20):
         if configuration is None:
             raise Exception(f"Invalid configuration: {configuration}")
 
@@ -183,6 +184,8 @@ class MumbleClient:
                                                                         daemon=True)
         self.current_target: list[str] = None
         self.listen: set[str] = set()
+        self.last_command_timestamp = 0
+        self.command_timeout = command_timeout
 
         self._setup_audio()
         self._create_mumble_instance()
@@ -339,6 +342,10 @@ class MumbleClient:
 
     def change_channel(self, channel_data):
         # self.stop_all_listening()
+        current_time = datetime.datetime.now().timestamp()
+        if current_time - self.last_command_timestamp < self.command_timeout:
+            return
+        self.last_command_timestamp = current_time
         if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
             if self.internal_chat and self.current_target is not None:
                 stop_listening_targets = list(set(self.current_target) - self.listen)
