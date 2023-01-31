@@ -347,7 +347,7 @@ class MumbleClient:
         if current_time - self.last_command_timestamp < self.command_timeout:
             return
         self.last_command_timestamp = current_time
-        if channel_data["ChannelName"] == self.mumble.my_channel()["name"]:
+        if channel_data["ChannelName"] == self.mumble.my_channel()["name"] or (self.internal_chat and self.current_target == [channel_data["ChannelName"]]):
             if self.internal_chat and self.current_target is not None:
                 stop_listening_targets = list(set(self.current_target) - self.listen)
                 self.change_channel_listening_status(stop_listening_targets, False)
@@ -369,7 +369,7 @@ class MumbleClient:
                         self.mumble.channels.find_by_name(channel_data["ChannelName"])["channel_id"]))
 
         time.sleep(0.1)
-        if self.mumble.my_channel()["name"] == channel_data["ChannelName"]:
+        if self.mumble.my_channel()["name"] == channel_data["ChannelName"] or self.internal_chat:
             send_event_reports.voice_chat_change_channel(self.mumble.my_channel()["name"],
                                                          channel_data["ChannelName"], self.nickname,
                                                          exercise_id=self.exercise_id)
