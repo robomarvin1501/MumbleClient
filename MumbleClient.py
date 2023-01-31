@@ -5,6 +5,7 @@ import sys
 import time
 import keyboard
 import pyaudio
+import audioop
 import threading
 
 import tkinter as tk
@@ -401,7 +402,9 @@ class MumbleClient:
         starting_time = time.time()
         while time.time() - starting_time < 0.05:
             data = self.stream.read(CHUNKSIZE, exception_on_overflow=False)
-            self.mumble.sound_output.add_sound(data)
+            rms = audioop.rms(data, 2)
+            if rms > 200:
+                self.mumble.sound_output.add_sound(data)
 
 
 def check_configuration_update(mumble_client: MumbleClient, configuration_path: str, last_update_time: float,
