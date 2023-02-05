@@ -13,7 +13,7 @@ excel_config: pd.DataFrame = pd.read_excel(r"***REMOVED***_excel/***REMOVED***_*
 user_types = dict()
 
 config = {
-    "speak": "`",
+    "speak": ["`", ";"],
     "StartListening": "+",
     "StopListening": "-",
     "UserTypeConfigurations": {},

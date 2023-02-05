@@ -224,9 +224,10 @@ class MumbleClient:
                                            frames_per_buffer=CHUNKSIZE)
 
     def _setup_keyboard_hooks(self):
-        keyboard.add_hotkey(self.configuration["speak"], self.audio_capture)
-        keyboard.on_press_key(self.configuration["speak"], self._start_talking)
-        keyboard.on_release_key(self.configuration["speak"], self._stop_talking)
+        for speak_key in self.configuration["speak"]:
+            keyboard.add_hotkey(speak_key, self.audio_capture)
+            keyboard.on_press_key(speak_key, self._start_talking)
+            keyboard.on_release_key(speak_key, self._stop_talking)
 
         keyboard.add_hotkey(
             self.configuration["StartListening"],
