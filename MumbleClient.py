@@ -364,6 +364,7 @@ class MumbleClient:
                 self.internal_chat and self.current_target == [channel_data["ChannelName"]]):
             if self.internal_chat and self.current_target is not None:
                 stop_listening_targets = list(set(self.current_target) - self.listen)
+                self.current_target = [channel_data["ChannelName"]]
                 self.change_channel_listening_status(stop_listening_targets, False)
                 self.gui.change_channel(channel_data)
             return
