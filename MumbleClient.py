@@ -160,7 +160,8 @@ RATE = 48000  # pymumble soundchunk.pcm is 48000Hz
 
 
 class MumbleClient:
-    def __init__(self, server, nickname, pwd="", gui: Mumbler = None, configuration=None, command_timeout: float = 0.8, exercise_id=20):
+    def __init__(self, server, nickname, pwd="", gui: Mumbler = None, configuration=None, command_timeout: float = 0.8,
+                 exercise_id=20):
         if configuration is None:
             raise Exception(f"Invalid configuration: {configuration}")
 
@@ -183,6 +184,7 @@ class MumbleClient:
         self.internal_chat = False
         self.always_talking_thread: threading.Thread = threading.Thread(target=self.always_talking_audio_capture,
                                                                         daemon=True)
+        self.internal_channel: list[str] = None
         self.current_target: list[str] = None
         self.listen: set[str] = set()
         self.last_command_timestamp = 0
@@ -262,6 +264,7 @@ class MumbleClient:
             channel_config = self.configuration["UserTypeConfigurations"][self.person_type][channel_num]
             if "AlwaysTalking" in channel_config and channel_config["AlwaysTalking"]:
                 self.internal_chat = True
+                self.internal_channel = [channel_config["ChannelName"]]
                 self.always_talking_thread.start()
                 return
 
@@ -279,9 +282,10 @@ class MumbleClient:
     def _start_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._already_speaking and not self._muted:
             if self.internal_chat and self.current_target is not None:
-                self.mumble.sound_output.set_whisper(
-                    [self.mumble.channels.find_by_name(self.current_target[0])["channel_id"]], channel=True
-                )
+                # self.mumble.sound_output.set_whisper(
+                #     [self.mumble.channels.find_by_name(self.current_target[0])["channel_id"]], channel=True
+                # )
+                self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session, self.mumble.channels.find_by_name(self.current_target[0])["channel_id"]))
             send_event_reports.voice_chat_change_recording(0, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = True
@@ -290,7 +294,10 @@ class MumbleClient:
     def _stop_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._muted:
             if self.internal_chat:
-                self.mumble.sound_output.remove_whisper()
+                # self.mumble.sound_output.remove_whisper()
+                # self.change_channel(self.internal_channel))
+                target_channel = self.mumble.channels.find_by_name(self.internal_channel[0])
+                self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session, target_channel["channel_id"]))
             send_event_reports.voice_chat_change_recording(1, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = False
@@ -347,7 +354,8 @@ class MumbleClient:
         if current_time - self.last_command_timestamp < self.command_timeout:
             return
         self.last_command_timestamp = current_time
-        if channel_data["ChannelName"] == self.mumble.my_channel()["name"] or (self.internal_chat and self.current_target == [channel_data["ChannelName"]]):
+        if channel_data["ChannelName"] == self.mumble.my_channel()["name"] or (
+                self.internal_chat and self.current_target == [channel_data["ChannelName"]]):
             if self.internal_chat and self.current_target is not None:
                 stop_listening_targets = list(set(self.current_target) - self.listen)
                 self.change_channel_listening_status(stop_listening_targets, False)
