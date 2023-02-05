@@ -225,9 +225,12 @@ class MumbleClient:
 
     def _setup_keyboard_hooks(self):
         for speak_key in self.configuration["speak"]:
-            keyboard.add_hotkey(speak_key, self.audio_capture)
-            keyboard.on_press_key(speak_key, self._start_talking)
-            keyboard.on_release_key(speak_key, self._stop_talking)
+            try:
+                keyboard.add_hotkey(speak_key, self.audio_capture)
+                keyboard.on_press_key(speak_key, self._start_talking)
+                keyboard.on_release_key(speak_key, self._stop_talking)
+            except ValueError:
+                pass
 
         keyboard.add_hotkey(
             self.configuration["StartListening"],
