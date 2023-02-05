@@ -174,7 +174,7 @@ class MumbleClient:
 
         self.mumble: pymumble_py3.Mumble = None  # Defined in _create_mumble_instance
         self.p: pyaudio.PyAudio = None  # Defined in _setup_audio
-        self.stream: pyaudio.Stream = None  # Defined in _setup_audio
+        self.streams: dict[str, pyaudio.Stream] = None
         self.person_type: str = None  # Defined in _setup_keyboard_hooks
 
         self.exercise_id = exercise_id
@@ -198,8 +198,9 @@ class MumbleClient:
         self._move_to_starting_channel()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stream.stop_stream()
-        self.stream.close()
+        for stream in self.streams.values():
+            stream.stop_stream()
+            stream.close()
         self.p.terminate()
 
     def _create_mumble_instance(self):
@@ -211,12 +212,16 @@ class MumbleClient:
 
     def _setup_audio(self):
         self.p = pyaudio.PyAudio()
-        self.stream = self.p.open(format=FORMAT,
-                                  channels=PYAUDIO_CHANNELS,
-                                  rate=RATE,
-                                  input=True,
-                                  output=True,
-                                  frames_per_buffer=CHUNKSIZE)
+        self.streams = dict()
+        self._open_new_audio_stream("i_am_talking")
+
+    def _open_new_audio_stream(self, person):
+        self.streams[person] = self.p.open(format=FORMAT,
+                                           channels=PYAUDIO_CHANNELS,
+                                           rate=RATE,
+                                           input=True,
+                                           output=True,
+                                           frames_per_buffer=CHUNKSIZE)
 
     def _setup_keyboard_hooks(self):
         keyboard.add_hotkey(self.configuration["speak"], self.audio_capture)
@@ -282,10 +287,9 @@ class MumbleClient:
     def _start_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._already_speaking and not self._muted:
             if self.internal_chat and self.current_target is not None:
-                # self.mumble.sound_output.set_whisper(
-                #     [self.mumble.channels.find_by_name(self.current_target[0])["channel_id"]], channel=True
-                # )
-                self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session, self.mumble.channels.find_by_name(self.current_target[0])["channel_id"]))
+                self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session,
+                                                    self.mumble.channels.find_by_name(self.current_target[0])[
+                                                        "channel_id"]))
             send_event_reports.voice_chat_change_recording(0, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = True
@@ -294,8 +298,6 @@ class MumbleClient:
     def _stop_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._muted:
             if self.internal_chat:
-                # self.mumble.sound_output.remove_whisper()
-                # self.change_channel(self.internal_channel))
                 target_channel = self.mumble.channels.find_by_name(self.internal_channel[0])
                 self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session, target_channel["channel_id"]))
             send_event_reports.voice_chat_change_recording(1, self.mumble.my_channel()["name"], self.nickname,
@@ -400,7 +402,11 @@ class MumbleClient:
             self.gui.stop_showing_talking_timer.cancel()
         talking_channel = self.mumble.channels[user["channel_id"]]["name"]
         self.gui.show_someone_else_talking(talking_channel, True)
-        self.stream.write(soundchunk.pcm)
+        try:
+            self.streams[user["session"]].write(soundchunk.pcm)
+        except KeyError:
+            self._open_new_audio_stream(user["session"])
+            self.streams[user["session"]].write(soundchunk.pcm)
 
     def always_talking_audio_capture(self):
         while True:
@@ -409,7 +415,7 @@ class MumbleClient:
     def audio_capture(self):
         starting_time = time.time()
         while time.time() - starting_time < 0.05:
-            data = self.stream.read(CHUNKSIZE, exception_on_overflow=False)
+            data = self.streams["i_am_talking"].read(CHUNKSIZE, exception_on_overflow=False)
             rms = audioop.rms(data, 2)
             if rms > 200:
                 self.mumble.sound_output.add_sound(data)
