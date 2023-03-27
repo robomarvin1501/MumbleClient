@@ -294,6 +294,7 @@ class MumbleClient:
                 self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session,
                                                     self.mumble.channels.find_by_name(self.current_target[0])[
                                                         "channel_id"]))
+                time.sleep(0.1)  # Ensures that we have finished moving channels before sending the message
             send_event_reports.voice_chat_change_recording(0, self.mumble.my_channel()["name"], self.nickname,
                                                            exercise_id=self.exercise_id)
             self._already_speaking = True
@@ -302,6 +303,7 @@ class MumbleClient:
     def _stop_talking(self, key_event: keyboard.KeyboardEvent):
         if not self._muted:
             if self.internal_chat:
+                # Move back to internal channel
                 target_channel = self.mumble.channels.find_by_name(self.internal_channel[0])
                 self.mumble.execute_command(MoveCmd(self.mumble.users.myself_session, target_channel["channel_id"]))
             send_event_reports.voice_chat_change_recording(1, self.mumble.my_channel()["name"], self.nickname,
