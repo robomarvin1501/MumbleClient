@@ -42,6 +42,8 @@ class Mumbler:
 
         self.window = tk.Tk()
         self.window.title(f"***REMOVED***-{nickname}")
+        self.nickname = nickname
+        self.exercise_id = configuration["exercise_id"]
         self.frames: dict[str, tk.Frame] = dict()
         self.labels: dict[str, tk.Label] = dict()
 
@@ -97,6 +99,13 @@ class Mumbler:
         self.window.update()
 
     def change_channel(self, channel_data: dict[str]):
+        if channel_data["ChannelName"] == self.current_channel:
+            self.set_all_frame_colours()
+            return
+
+        send_event_reports.voice_chat_change_channel(self.current_channel, channel_data["ChannelName"],
+                                                     self.nickname, self.exercise_id)
+
         if self.current_channel != "":
             self.frames[self.current_channel].config(highlightthickness=self.non_selected_thickness)
 
@@ -387,9 +396,6 @@ class MumbleClient:
 
         time.sleep(0.1)
         if self.mumble.my_channel()["name"] == channel_data["ChannelName"] or self.internal_chat:
-            send_event_reports.voice_chat_change_channel(self.mumble.my_channel()["name"],
-                                                         channel_data["ChannelName"], self.nickname,
-                                                         exercise_id=self.exercise_id)
             if channel_data["CanTalk"]:
                 self.mumble.users[self.mumble.users.myself_session].unmute()
                 self._muted = False

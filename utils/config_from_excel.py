@@ -21,6 +21,7 @@ config = {
     "speak": ["`", ";"],
     "StartListening": "+",
     "StopListening": "-",
+    "exercise_id": 20,
     "UserTypeConfigurations": {},
     "UserTypes": {}
 }
