@@ -41,7 +41,7 @@ class Mumbler:
         self.talking_highlight = COLOURS["green"]
 
         self.window = tk.Tk()
-        self.window.title(f"***REMOVED***-{nickname}")
+        self.window.title(f"radio-{nickname}")
         self.nickname = nickname
         self.exercise_id = configuration["exercise_id"]
         self.frames: dict[str, tk.Frame] = dict()
@@ -456,21 +456,8 @@ def check_configuration_update(mumble_client: MumbleClient, configuration_path: 
 
 if __name__ == "__main__":
     config = "example_config.json"
-    mblr = Mumbler("***REMOVED***", "Alex", config)
+    mblr = Mumbler("mumble_server", "Alex", config)
     check_configuration_update(mblr.mumble_client, config, os.path.getmtime("example_config.json"), 2)
 
     mblr.window.mainloop()
 
-    # server = sys.argv[1]
-    # nickname = sys.argv[2]
-    # configuration_path = sys.argv[3]
-    #
-    # with open(configuration_path, 'r', encoding="utf-8") as f:
-    #     configuration = json.load(f)
-    # mumbler = MumbleClient("***REMOVED***", nickname, configuration=configuration)
-    # # mumbler = MumbleClient("***REMOVED***", "***REMOVED***Only", configuration=configuration)
-    #
-    # check_configuration_update(mumbler, "example_config.json", os.path.getmtime("example_config.json"), 2)
-    #
-    # keyboard.wait("esc")
-    # print("Exited")

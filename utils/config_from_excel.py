@@ -12,8 +12,8 @@ import json
 2: always speak
 """
 
-***REMOVED*** = "***REMOVED*** ***REMOVED*** 1"
-excel_config: pd.DataFrame = pd.read_excel(r"../***REMOVED***_excel/***REMOVED***_***REMOVED***.xlsx", sheet_name=***REMOVED***)
+sheet_name = "sheet_name"
+excel_config: pd.DataFrame = pd.read_excel(r"../excel_configs/excel_config.xlsx", sheet_name=sheet_name)
 
 user_types = dict()
 
@@ -58,9 +58,9 @@ def get_hooks_from_numstring(numstring: str, channel_names: list[str]):
 
 
 options = list("-012")
-for index, row in excel_config.loc[:, "***REMOVED*** ***REMOVED***":].iterrows():
+for index, row in excel_config.loc[:, "computer name":].iterrows():
     user_type = ""
-    for i, v in enumerate(row["***REMOVED***":]):
+    for i, v in enumerate(row["group":]):
         option = f"{v}"
         if option in options:
             user_type += option
@@ -70,7 +70,7 @@ for index, row in excel_config.loc[:, "***REMOVED*** ***REMOVED***":].iterrows()
     if user_type not in user_types:
         user_types[user_type] = []
 
-    user_types[user_type].append(row["***REMOVED*** ***REMOVED***"])
+    user_types[user_type].append(row["computer name"])
 
 for user_type in user_types:
     if user_type not in config["UserTypeConfigurations"]:
@@ -80,8 +80,8 @@ for user_type in user_types:
 
     config["UserTypes"][user_type] = user_types[user_type]
 
-output_config_name = input(f"The current sheet name is: {***REMOVED***}.\nWhat should this config file be called: ")
+output_config_name = input(f"The current sheet name is: {sheet_name}.\nWhat should this config file be called: ")
 if output_config_name == "":
-    output_config_name = ***REMOVED***
-with open(f"../***REMOVED***_excel/{output_config_name}.json", 'w', encoding="utf-8") as f:
+    output_config_name = sheet_name
+with open(f"../excel_configs/{output_config_name}.json", 'w', encoding="utf-8") as f:
     json.dump(config, f, ensure_ascii=False)

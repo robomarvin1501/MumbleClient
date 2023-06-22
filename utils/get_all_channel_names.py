@@ -6,13 +6,13 @@ import pandas as pd
 import pymumble_py3
 import time
 
-***REMOVED*** = "***REMOVED*** ***REMOVED*** 1"
-excel_config: pd.DataFrame = pd.read_excel(r"***REMOVED***_excel/***REMOVED***_***REMOVED***.xlsx", sheet_name=***REMOVED***)
+sheet_name = "sheet_name"
+excel_config: pd.DataFrame = pd.read_excel(r"excel_configs/excel_config.xlsx", sheet_name=sheet_name)
 
-channel_names = list(excel_config.loc[:, "***REMOVED*** ***REMOVED*** 1":].columns)
+channel_names = list(excel_config.loc[:, "team_channel":].columns)
 print(channel_names)
 
-mumble: pymumble_py3.Mumble = pymumble_py3.Mumble("***REMOVED***", "SuperUser", password="not***REMOVED***")
+mumble: pymumble_py3.Mumble = pymumble_py3.Mumble("mumble_server", "SuperUser", password="password")
 mumble.start()
 mumble.is_ready()
 
